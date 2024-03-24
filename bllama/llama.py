@@ -127,8 +127,7 @@ class Transformer(nn.Module):
         ):
         bsz, seqlen = x.shape
         x = self.embed(x)
-        freq_cis = self.freq_cis.to(x.device)
-        freq_cis = self.freq_cis[:seqlen]
+        freq_cis = self.freq_cis[:seqlen].to(x.device)
         for i, blk in enumerate(self.blocks):
             x = blk(x, freq_cis)
         x = self.norm(x)
