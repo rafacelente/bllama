@@ -31,10 +31,11 @@ class LlamaAttention(nn.Module):
             x: torch.Tensor,
             freq_cis: torch.Tensor,
             mask: torch.Tensor = None,
+            inference: bool = False,
         ):
 
         bsz, seqlen, _ = x.shape
-        xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
+        xq, xk, xv = self.wq(x, inference), self.wk(x, inference), self.wv(x, inference)
         xq = xq.view(bsz, seqlen, self.n_heads, self.head_dim)
         xk = xk.view(bsz, seqlen, self.n_heads, self.head_dim)
         xv = xv.view(bsz, seqlen, self.n_heads, self.head_dim)
@@ -62,7 +63,7 @@ class LlamaAttention(nn.Module):
 
         attn_output = self.attn_drop(attn_output)
         attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
-        return self.wo(attn_output)
+        return self.wo(attn_output, inference)
     
 class FeedForward(nn.Module):
     def __init__(
@@ -75,8 +76,8 @@ class FeedForward(nn.Module):
         self.w2 = BitLinear(hidden_dim, dim)
         self.w3 = BitLinear(dim, hidden_dim)
 
-    def forward(self, x):
-        return self.w2(F.silu(self.w1(x)) * self.w3(x))
+    def forward(self, x, inference: bool = False):
+        return self.w2(F.silu(self.w1(x, inference)) * self.w3(x, inference), inference=inference)
     
 class TransformerBlock(nn.Module):
     def __init__(
@@ -95,9 +96,10 @@ class TransformerBlock(nn.Module):
             self,
             x: torch.Tensor,
             freq_cis: torch.Tensor,
+            inference: bool = False,
         ):
-        h = x + self.attn(self.attn_norm(x), freq_cis)
-        return h + self.ff(self.ff_norm(h))
+        h = x + self.attn(self.attn_norm(x), freq_cis, mask=None, inference=inference)
+        return h + self.ff(self.ff_norm(h), inference=inference)
     
 class Transformer(nn.Module):
     def __init__(
@@ -129,7 +131,7 @@ class Transformer(nn.Module):
         x = self.embed(x)
         freq_cis = self.freq_cis[:seqlen].to(x.device)
         for i, blk in enumerate(self.blocks):
-            x = blk(x, freq_cis)
+            x = blk(x, freq_cis, mask=None, inference=False)
         x = self.norm(x)
         return self.vocab_proj(x)
     

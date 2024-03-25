@@ -1,16 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from .utils import RMSNorm
-
-def weight_quant(w):
-    scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
-    u = (w * scale).round().clamp_(-1,1) / scale
-    return u
-
-def activation_quant(x):
-    scale = 127.0 / x.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
-    u = (x * scale).round().clamp_(-128,127) / scale
-    return u
+from .quantization import weight_quant, activation_quant, activation_norm_quant
+from typing import Optional
 
 class BitLinear(nn.Linear):
     def __init__(self, in_features, out_features, bias=True):
@@ -18,12 +10,19 @@ class BitLinear(nn.Linear):
         self.in_features = in_features
         self.out_features = out_features
         self.rms_norm = RMSNorm(in_features)
+        self.weight_scale = None
         nn.init.kaiming_normal_(self.weight, mode='fan_out', nonlinearity='relu')
 
-    def forward(self, x):
+    def forward(self, x, inference: Optional[bool]=False):
         w = self.weight
-        x_norm = self.rms_norm(x)
-        x_quant = x_norm + (activation_quant(x_norm) - x_norm).detach()
-        w_quant = w + (weight_quant(w) - w).detach()
-        y = F.linear(x_quant, w_quant, self.bias)
-        return y
+        if not inference:
+            x_norm = self.rms_norm(x)
+            x_quant = x_norm + (activation_quant(x_norm) - x_norm).detach()
+            w_quant = w + (weight_quant(w) - w).detach()
+            return F.linear(x_quant, w_quant, self.bias)
+        else:
+            x_quant, x_scale = activation_norm_quant(x)
+            w_scale = self.weight_scale
+            # according to the paper, this linear layer may have to be replaced by a gemm_lowbit_kernel,
+            # but no such kernel is available, nor any directions on how to implement it, so we'll just use linear
+            return F.linear(x_quant, w_quant, self.bias) / (x_scale * w_scale)
