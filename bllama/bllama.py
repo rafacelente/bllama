@@ -70,7 +70,7 @@ class bLlama(pl.LightningModule):
 
             for _ in range(max_len):
                 with torch.no_grad():
-                    outputs = self.model(generated)
+                    outputs = self.model(generated, inference=True)
                     next_token_logits = outputs[:, -1, :]
                     for token in set(generated[0].tolist()):
                         next_token_logits[:, token] /= repetition_penalty

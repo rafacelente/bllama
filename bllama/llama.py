@@ -126,12 +126,13 @@ class Transformer(nn.Module):
     def forward(
             self,
             x: torch.Tensor,
+            inference: bool = False,
         ):
         bsz, seqlen = x.shape
         x = self.embed(x)
         freq_cis = self.freq_cis[:seqlen].to(x.device)
         for i, blk in enumerate(self.blocks):
-            x = blk(x, freq_cis, inference=False)
+            x = blk(x, freq_cis, inference=inference)
         x = self.norm(x)
         return self.vocab_proj(x)
     
