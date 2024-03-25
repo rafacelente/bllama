@@ -1,5 +1,5 @@
 import torch
-from .utils import RMSNorm
+from .utils import rms_norm
 
 def weight_quant(w: torch.Tensor):
     """
@@ -43,7 +43,7 @@ def activation_norm_quant(x: torch.Tensor):
         y (torch.Tensor): quantized activations
         scale (torch.Tensor): scale factor
     """
-    x = RMSNorm(x)
+    x = rms_norm(x)
     scale = 127.0 / x.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
     y = (x * scale).round().clamp_(-128,127)
     return y, scale

@@ -79,6 +79,11 @@ def precompute_freqs_cis(dim: int, end: int, theta: float = 10000.0):
     freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
     return freqs_cis
 
+def rms_norm(x, eps=1e-6):
+    variance = x.to(torch.float32).pow(2).mean(-1, keepdim=True)
+    x = x * torch.rsqrt(variance + eps)
+    return x
+
 class RMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         super().__init__()
