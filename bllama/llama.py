@@ -131,7 +131,7 @@ class Transformer(nn.Module):
         x = self.embed(x)
         freq_cis = self.freq_cis[:seqlen].to(x.device)
         for i, blk in enumerate(self.blocks):
-            x = blk(x, freq_cis, mask=None, inference=False)
+            x = blk(x, freq_cis, inference=False)
         x = self.norm(x)
         return self.vocab_proj(x)
     
