@@ -151,7 +151,7 @@ class Transformer(nn.Module):
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, sequence_length).
-            inference (bool, optional): Flag indicating whether the forward pass is for inference or training. Defaults to False.
+            inference (bool, optional): Flag indicating whether the forward pass is for inference or training. This is needed because the BitLinear layers have different behavior during inference.
 
         Returns:
             torch.Tensor: Output tensor of shape (batch_size, sequence_length, vocab_size).
