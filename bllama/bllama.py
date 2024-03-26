@@ -5,6 +5,7 @@ from .config import bLlamaConfig
 from .llama import Transformer
 from .quantization import quantize_weights_to_int8
 from typing import Tuple
+from .bitlinear import BitLinear
 
 class bLlama(pl.LightningModule):
     def __init__(
@@ -15,18 +16,18 @@ class bLlama(pl.LightningModule):
         self.config = config
         self.model = Transformer(config)
 
-    def quantize_weights_to_int8(self):
-        current_state_dict = self.model.state_dict()
-        new_state_dict = {}
-        list_of_bitlinear_layers = ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "ff.w1", "ff.w2", "ff.w3"]
-        for k, v in current_state_dict.items():
-            quantize_weights = False
-            for bitlinear_layer in list_of_bitlinear_layers:
-                if bitlinear_layer in k:
-                    quantize_weights = True
-                    break
-            new_state_dict[k] = quantize_weights_to_int8(v)[0] if quantize_weights else v
-        self.model.load_state_dict(new_state_dict)
+    def quantize_weights_to_ternary(self):
+        """
+            Quantize all BitLinear layers to ternary.
+            WARNING: This won't cast the weights to int8. The weights will still be float32.
+        """
+        for name, layer in self.model.named_modules():
+            if isinstance(layer, BitLinear):
+                for k, v in layer.state_dict().items():
+                    if 'weight' in k and 'norm' not in k:
+                        w_quant, scale = quantize_weights_to_int8(v)
+                        layer.weight.data = w_quant
+                        layer.weight_scale = scale
 
     def get_model_size_in_bytes(self, verbose=True):
         param_size = 0
@@ -38,6 +39,7 @@ class bLlama(pl.LightningModule):
             print(f'Model size:= {size_all_mb} MB')
         return size_all_mb
 
+    # FIXME: This is overly complicated, but works for now.
     def generate(
             self,
             prompt: str,
@@ -56,6 +58,11 @@ class bLlama(pl.LightningModule):
         self.model = self.model.to(device)
         self.model.eval()
 
+        # asserting that all bitlinear layers have weight scales...
+        unquantized_layers = [name for name, layer in self.model.named_modules() if isinstance(layer, BitLinear) and layer.weight_scale is None]
+        if len(unquantized_layers):
+            raise ValueError(f"Layers {unquantized_layers} have not been quantized to int8. Please call `quantize_weights_to_int8` before generating text.")
+        
         def top_k_filtering(logits, top_k=0, filter_value=-float('Inf')):
             top_k = min(top_k, logits.size(-1))
             if top_k > 0:
