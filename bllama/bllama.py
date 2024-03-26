@@ -28,6 +28,7 @@ class bLlama(pl.LightningModule):
                 for k, v in layer.state_dict().items():
                     if 'weight' in k and 'norm' not in k:
                         w_quant, scale = quantize_weights_to_int8(v)
+                        layer.weight.requires_grad = False
                         layer.weight.data = w_quant
                         layer.weight_scale = scale
         if verbose:
