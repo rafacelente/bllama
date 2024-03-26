@@ -26,4 +26,4 @@ class BitLinear(nn.Linear):
             w_scale = self.weight_scale
             # according to the paper, this linear layer may have to be replaced by a gemm_lowbit_kernel,
             # but no such kernel is available, nor any directions on how to implement it, so we'll just use linear
-            return F.linear(x_quant, w, self.bias) / (x_scale * w_scale)
+            return F.linear(x_quant, w.float(), self.bias) / (x_scale * w_scale)

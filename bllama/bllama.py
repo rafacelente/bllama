@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from .config import bLlamaConfig
-from .llama import Transformer
+from .transformer import Transformer
 from .quantization import quantize_weights_to_int8
 from typing import Tuple
 from .bitlinear import BitLinear
@@ -16,11 +16,13 @@ class bLlama(pl.LightningModule):
         self.config = config
         self.model = Transformer(config)
 
-    def quantize_weights_to_ternary(self):
+    def quantize_weights_to_ternary(self, verbose=True):
         """
-            Quantize all BitLinear layers to ternary.
-            WARNING: This won't cast the weights to int8. The weights will still be float32.
+            Quantize all BitLinear layers to ternary in int8.
         """
+        if verbose:
+            size_before_quant = self.get_model_size_in_bytes()
+            print(f'Mode size before quantization: {size_before_quant} MB')
         for name, layer in self.model.named_modules():
             if isinstance(layer, BitLinear):
                 for k, v in layer.state_dict().items():
@@ -28,15 +30,17 @@ class bLlama(pl.LightningModule):
                         w_quant, scale = quantize_weights_to_int8(v)
                         layer.weight.data = w_quant
                         layer.weight_scale = scale
+        if verbose:
+            size_after_quant = self.get_model_size_in_bytes()
+            print(f'Mode size after quantization: {size_after_quant} MB')
+            print(f'Quantization ratio: {size_after_quant / size_before_quant}')
 
-    def get_model_size_in_bytes(self, verbose=True):
+    def get_model_size_in_bytes(self):
         param_size = 0
         for param in self.model.parameters():
             param_size += param.nelement() * param.element_size()
 
         size_all_mb = (param_size) / 1024**2
-        if verbose: 
-            print(f'Model size:= {size_all_mb} MB')
         return size_all_mb
 
     # FIXME: This is overly complicated, but works for now.

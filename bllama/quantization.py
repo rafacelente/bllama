@@ -61,5 +61,5 @@ def quantize_weights_to_int8(w: torch.Tensor):
     """
     # TODO: Weights are not casted to int8 yet because no such kernel is available.
     scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
-    w_quant = (w * scale).round().clamp_(-1,1) #.to(torch.int8)
+    w_quant = (w * scale).round().clamp_(-1,1).to(torch.int8)
     return w_quant, scale
