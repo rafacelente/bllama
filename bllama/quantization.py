@@ -50,8 +50,7 @@ def activation_norm_quant(x: torch.Tensor):
 
 def quantize_weights_to_int8(w: torch.Tensor):
     """
-    Offline quantization of a set of weights to int8 based on the mean of the absolute values described by
-    https://github.com/microsoft/unilm/blob/master/bitnet/The-Era-of-1-bit-LLMs__Training_Tips_Code_FAQ.pdf
+    Offline quantization of a set of weights to int8 based on the mean of the absolute values.
 
     This operation casts the weights to int8.
     Args:
@@ -60,6 +59,7 @@ def quantize_weights_to_int8(w: torch.Tensor):
         w_quant (torch.Tensor): quantized weights
         scale (torch.Tensor): scale factor
     """
+    # TODO: Weights are not casted to int8 yet because no such kernel is available.
     scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
     w_quant = (w * scale).round().clamp_(-1,1) #.to(torch.int8)
     return w_quant, scale
