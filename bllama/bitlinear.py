@@ -5,7 +5,7 @@ from .quantization import weight_quant, activation_quant, activation_norm_quant
 from typing import Optional
 
 class BitLinear(nn.Linear):
-    def __init__(self, in_features, out_features, bias=True):
+    def __init__(self, in_features, out_features, bias=False):
         super(BitLinear, self).__init__(in_features, out_features, bias)
         self.in_features = in_features
         self.out_features = out_features
