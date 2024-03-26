@@ -63,10 +63,12 @@ class bLlama(pl.LightningModule):
         self.model = self.model.to(device)
         self.model.eval()
 
-        # asserting that all bitlinear layers have weight scales...
+        # for comparison, allow inference with unquantized weights
+        inference_with_quantized = True
         unquantized_layers = [name for name, layer in self.model.named_modules() if isinstance(layer, BitLinear) and layer.weight_scale is None]
         if len(unquantized_layers):
-            raise ValueError(f"Layers {unquantized_layers} have not been quantized to int8. Please call `quantize_weights_to_int8` before generating text.")
+            print(f'WARNING: The following bitlinear layers are not quantized: {unquantized_layers}. Inference will be done with unquantized weights.')
+            inference_with_quantized = False
         
         def top_k_filtering(logits, top_k=0, filter_value=-float('Inf')):
             top_k = min(top_k, logits.size(-1))
@@ -82,7 +84,7 @@ class bLlama(pl.LightningModule):
 
             for _ in range(max_len):
                 with torch.no_grad():
-                    outputs = self.model(generated, inference=True)
+                    outputs = self.model(generated, inference=inference_with_quantized)
                     next_token_logits = outputs[:, -1, :]
                     for token in set(generated[0].tolist()):
                         next_token_logits[:, token] /= repetition_penalty
