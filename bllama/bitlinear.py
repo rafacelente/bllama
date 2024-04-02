@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from .utils import RMSNorm
-from .quantization import weight_quant, activation_quant, activation_norm_quant
+from .quantization import weight_quant, activation_quant, activation_post_quant
 from typing import Optional
 
 class BitLinear(nn.Linear):
@@ -22,7 +22,8 @@ class BitLinear(nn.Linear):
             return F.linear(x_quant, w_quant, self.bias)
         else:
             # in case of inference, the weights are offline quantized to int8, so we assume w = w_quant
-            x_quant, x_scale = activation_norm_quant(x)
+            x_norm = self.rms_norm(x)
+            x_quant, x_scale = activation_post_quant(x_norm)
             w_scale = self.weight_scale
             # according to the paper, this linear layer may have to be replaced by a gemm_lowbit_kernel,
             # but no such kernel is available, nor any directions on how to implement it, so we'll just use linear

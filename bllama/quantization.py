@@ -1,5 +1,4 @@
 import torch
-from .utils import rms_norm
 
 def weight_quant(w: torch.Tensor):
     """
@@ -31,10 +30,13 @@ def activation_quant(x: torch.Tensor):
     u = (x * scale).round().clamp_(-128,127) / scale
     return u
 
-def activation_norm_quant(x: torch.Tensor):
+def activation_post_quant(x_norm: torch.Tensor):
     """
     Quantize the layer-normalized activations to 8 bit based on the mean of the absolute values described by
     https://github.com/microsoft/unilm/blob/master/bitnet/The-Era-of-1-bit-LLMs__Training_Tips_Code_FAQ.pdf
+
+    In constrast with the add-on of the paper, this function does not do its own RMSNorm. In turn, the 
+    RMSNorm will be done directly on the BitLinear layer.
 
     This doesn't change the type of the activations, but rather the values themselves.
     Args:
@@ -43,9 +45,8 @@ def activation_norm_quant(x: torch.Tensor):
         y (torch.Tensor): quantized activations
         scale (torch.Tensor): scale factor
     """
-    x = rms_norm(x)
-    scale = 127.0 / x.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
-    y = (x * scale).round().clamp_(-128,127)
+    scale = 127.0 / x_norm.abs().max(dim=-1, keepdim=True).values.clamp_(min=1e-5)
+    y = (x_norm * scale).round().clamp_(-128,127)
     return y, scale
 
 def quantize_weights_to_int8(w: torch.Tensor):
