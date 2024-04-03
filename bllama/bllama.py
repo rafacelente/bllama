@@ -7,17 +7,21 @@ from .quantization import quantize_weights_to_int8
 from typing import Tuple, Optional
 from .bitlinear import BitLinear
 from transformers import get_cosine_schedule_with_warmup
+from torchmetrics import Metric
 
 class bLlama(pl.LightningModule):
     def __init__(
             self,
             config: bLlamaConfig,
             trainer_config: Optional[trainerConfig] = trainerConfig(),
+            metric: Optional[Metric] = None,
         ):
         super().__init__()
         self.config = config
         self.trainer_config = trainer_config
         self.model = Transformer(config)
+        self.metric = metric
+        self.metric_name = self.metric.__class__.__name__ if self.metric is not None else None
 
     def quantize_weights_to_ternary(self, verbose=True):
         """
@@ -112,6 +116,9 @@ class bLlama(pl.LightningModule):
         logits = self.model(x)
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         self.log("train_loss", loss, prog_bar=True)
+        if self.metric is not None:
+            self.metric(logits, y)
+            self.log(f"train_{self.metric_name}", self.metric, prog_bar=True)
         return loss
     
     def validation_step(
@@ -122,6 +129,23 @@ class bLlama(pl.LightningModule):
         logits = self.model(x)
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         self.log("val_loss", loss, prog_bar=True)
+        if self.metric is not None:
+            self.metric(logits, y)
+            self.log(f"train_{self.metric_name}", self.metric, prog_bar=True)
+        return loss
+    
+    def test_step(
+            self, 
+            batch: Tuple[torch.Tensor], 
+            batch_idx: int
+        ):
+        x, y = batch
+        logits = self.model(x)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+        self.log("test_loss", loss, prog_bar=True)
+        if self.metric is not None:
+            self.metric(logits, y)
+            self.log(f"{self.metric_name}", self.metric, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
