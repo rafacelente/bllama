@@ -8,6 +8,7 @@ from typing import Tuple, Optional
 from .bitlinear import BitLinear
 from transformers import get_cosine_schedule_with_warmup
 from torchmetrics import Metric
+from torchmetrics.aggregation import SumMetric
 
 class bLlama(pl.LightningModule):
     def __init__(
@@ -15,6 +16,7 @@ class bLlama(pl.LightningModule):
             config: bLlamaConfig,
             trainer_config: Optional[trainerConfig] = trainerConfig(),
             metric: Optional[Metric] = None,
+            log_tokens_progression: Optional[bool] = False,
         ):
         super().__init__()
         self.config = config
@@ -22,6 +24,11 @@ class bLlama(pl.LightningModule):
         self.model = Transformer(config)
         self.metric = metric
         self.metric_name = self.metric.__class__.__name__ if self.metric is not None else None
+        self.token_aggregator = None
+        if log_tokens_progression:
+            self.log_tokens_progression = log_tokens_progression
+            self.token_aggregator = SumMetric()
+            
 
     def quantize_weights_to_ternary(self, verbose=True):
         """
@@ -117,8 +124,11 @@ class bLlama(pl.LightningModule):
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         self.log("train_loss", loss, prog_bar=True)
         if self.metric is not None:
-            self.metric(logits, y)
+            self.metric.compute(logits, y)
             self.log(f"train_{self.metric_name}", self.metric, prog_bar=True)
+        if self.log_tokens_progression:
+            self.token_aggregator.compute(x.shape[0] * x.shape[1])
+            self.log("tokens", self.token_aggregator, prog_bar=True)
         return loss
     
     def validation_step(
@@ -131,7 +141,7 @@ class bLlama(pl.LightningModule):
         self.log("val_loss", loss, prog_bar=True)
         if self.metric is not None:
             self.metric(logits, y)
-            self.log(f"train_{self.metric_name}", self.metric, prog_bar=True)
+            self.log(f"val_{self.metric_name}", self.metric, prog_bar=True)
         return loss
     
     def test_step(
@@ -145,7 +155,7 @@ class bLlama(pl.LightningModule):
         self.log("test_loss", loss, prog_bar=True)
         if self.metric is not None:
             self.metric(logits, y)
-            self.log(f"{self.metric_name}", self.metric, prog_bar=True)
+            self.log(f"test_{self.metric_name}", self.metric, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
