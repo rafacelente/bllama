@@ -8,20 +8,20 @@ import wandb
 class CalculateDistributionCallback(pl.Callback):
     def __init__(
             self, 
-            every_n_step: Optional[int] = 5000,
-            to_wandb: Optional[bool] = False,
-            save_path: Optional[str] = None,
+            every_n_step: Optional[int] = 1000,
+            to_wandb: Optional[bool] = True,
+            save_path: Optional[str] = "./callback.png",
             ):
         self.every_n_step = every_n_step
         self.to_wandb = to_wandb
         self.save_path = save_path
 
-    def on_batch_end(self, trainer: pl.Trainer):
+    def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx):
         if trainer.global_step % self.every_n_step == 0 and trainer.global_step != 0:
             self._produce_distribution(trainer)
         
     @torch.no_grad()
-    def _quantize_weights_to_int8_with_no_clamp(w: torch.Tensor):
+    def _quantize_weights_to_int8_with_no_clamp(self, w: torch.Tensor):
         scale = 1.0 / w.abs().mean().clamp_(min=1e-5)
         w_quant = (w * scale).round()
         w_quant.requires_grad = False
@@ -32,7 +32,7 @@ class CalculateDistributionCallback(pl.Callback):
             self,
             trainer: pl.Trainer,
             ):
-        model = trainer.model.model.copy()
+        model = trainer.model.model
         fig, axs = plt.subplots(4,4, figsize=(10,10))
 
         i = 0
@@ -49,6 +49,6 @@ class CalculateDistributionCallback(pl.Callback):
                 i += 1
         plt.suptitle(f"Weight distribution of quantized wq layers at step {trainer.global_step}")
         if self.to_wandb:
-            wandb.log({"weight_distribution": fig})
+            wandb.log({"weight_distribution": wandb.Image(fig)})
         if self.save_path is not None:
             plt.savefig(self.save_path)
