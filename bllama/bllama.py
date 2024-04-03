@@ -124,11 +124,11 @@ class bLlama(pl.LightningModule):
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         self.log("train_loss", loss, prog_bar=True)
         if self.metric is not None:
-            self.metric.compute(logits, y)
+            self.metric(logits, y)
             self.log(f"train_{self.metric_name}", self.metric, prog_bar=True)
         if self.log_tokens_progression:
-            self.token_aggregator.compute(x.shape[0] * x.shape[1])
-            self.log("tokens", self.token_aggregator, prog_bar=True)
+            self.token_aggregator.update(x.shape[0] * x.shape[1])
+            self.log("tokens", self.token_aggregator.compute(), prog_bar=True)
         return loss
     
     def validation_step(
