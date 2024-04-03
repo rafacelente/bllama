@@ -1,19 +1,22 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from .config import bLlamaConfig
+from .config import bLlamaConfig, trainerConfig
 from .transformer import Transformer
 from .quantization import quantize_weights_to_int8
-from typing import Tuple
+from typing import Tuple, Optional
 from .bitlinear import BitLinear
+from transformers import get_cosine_schedule_with_warmup
 
 class bLlama(pl.LightningModule):
     def __init__(
             self,
             config: bLlamaConfig,
+            trainer_config: Optional[trainerConfig] = trainerConfig(),
         ):
         super().__init__()
         self.config = config
+        self.trainer_config = trainer_config
         self.model = Transformer(config)
 
     def quantize_weights_to_ternary(self, verbose=True):
@@ -123,5 +126,10 @@ class bLlama(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=0.01)
-        return optimizer
-    
+        cosine_scheduler = get_cosine_schedule_with_warmup(
+            optimizer, 
+            num_warmup_steps=self.trainer_config.num_warmup_steps, 
+            num_training_steps=self.trainer_config.max_steps
+        )
+        lr_scheduler_config = {'scheduler': cosine_scheduler, 'interval': 'step'}
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler_config}    
